@@ -4,8 +4,15 @@ import json
 INPUT = "data/_Encuesta_estudiantil_2025.txt"
 OUT = "output/"
 
-top3 = ["Totalmente satisfecho", "Muy satisfecho", "Satisfecho"]
-exclude = ["No conozco", "No utilizo"]
+respuestas_texto = [
+    "Totalmente satisfecho",
+    "Muy satisfecho",
+    "Satisfecho",
+    "Insatisfecho",
+    "Totalmente insatisfecho",
+    "No utilizo",
+    "No conozco"
+]
 
 # -----------------------
 # Leer data
@@ -13,157 +20,137 @@ exclude = ["No conozco", "No utilizo"]
 df = pd.read_csv(INPUT, sep=None, engine="python")
 
 # -----------------------
-# Utilidades
+# Catálogo dimensión → categoría
 # -----------------------
-def t3b_from_counts(series):
-    s = series.dropna()
-    s = s[~s.isin(exclude)]
-    total = len(s)
-    ok = s.isin(top3).sum()
-    return round(ok / total * 100, 2), ok, total
+categoria_dim = {
+    # Académico
+    "Perfil del egreso de la carrera": "Académico",
+    "Calidad de la enseñanza en la carrera": "Académico",
+    "Plan curricular y perfil de egreso": "Académico",
+    "Cursos del programa y contenidos": "Académico",
+    "Evaluación del aprendizaje": "Académico",
+    "Intercambio estudiantil": "Académico",
 
-# -----------------------
-# RESUMEN
-# -----------------------
+    # Administrativo y Bienestar
+    "Servicio médico y su infraestructura": "Administrativo y Bienestar",
+    "Material bibliográfico en la biblioteca": "Administrativo y Bienestar",
+    "Talleres de actividades artísticas y culturales": "Administrativo y Bienestar",
+    "Atención del personal administrativo": "Administrativo y Bienestar",
+    "Actividades deportivas": "Administrativo y Bienestar",
+    "Información sobre tu récord académico": "Administrativo y Bienestar",
+    "Servicio de atención psicopedagógica": "Administrativo y Bienestar",
+    "Ayuda financiera": "Administrativo y Bienestar",
+
+    # Infraestructura
+    "Condiciones ambientales en laboratorios": "Infraestructura",
+    "Equipamiento tecnológico en laboratorios": "Infraestructura",
+    "Aulas de clase": "Infraestructura",
+    "Ambientes y aulas para estudio": "Infraestructura",
+
+    # Tecnología
+    "Aula virtual": "Tecnología",
+    "Software especializado empleado en la carrera": "Tecnología",
+    "Soporte técnico del sistema informático": "Tecnología",
+    "Portal web de la Universidad": "Tecnología",
+    "Conexión WiFi en el campus": "Tecnología",
+}
+
+# =========================================================
+# 1. dimensiones.json  (tabla base para filtros)
+# =========================================================
+rows = []
+
+for (fac, car, cic), sub in df.groupby(["Facultad", "Carrera", "Ciclo"]):
+    for dim, cat in categoria_dim.items():
+        serie = sub[dim].dropna()
+
+        conteos = {r: int((serie == r).sum()) for r in respuestas_texto}
+
+        row = {
+            "facultad": fac,
+            "carrera": car,
+            "ciclo": cic,
+            "categoria": cat,
+            "dimension": dim,
+            **conteos
+        }
+
+        rows.append(row)
+
+with open(f"{OUT}dimensiones.json", "w", encoding="utf-8") as f:
+    json.dump(rows, f, ensure_ascii=False, indent=2)
+
+# =========================================================
+# 2. nps_base.json  (distribución 0–10 por carrera y ciclo)
+# =========================================================
+nps_col = "Recomiendas la Universidad de Lima"
+
+def build_nps(group_col, label):
+    salida = []
+    for val, sub in df.groupby(group_col):
+        serie = sub[nps_col].dropna()
+        conteos = {str(i): int((serie == i).sum()) for i in range(11)}
+
+        salida.append({
+            "nivel": label,
+            "valor": val,
+            **conteos
+        })
+    return salida
+
+nps_rows = []
+nps_rows += build_nps("Carrera", "carrera")
+nps_rows += build_nps("Ciclo", "ciclo")
+
+with open(f"{OUT}nps_base.json", "w", encoding="utf-8") as f:
+    json.dump(nps_rows, f, ensure_ascii=False, indent=2)
+
+# =========================================================
+# 3. resumen.json (solo totales reales)
+# =========================================================
 inicio = pd.to_datetime(df["Inicio"], dayfirst=True, errors="coerce").min()
 fin = pd.to_datetime(df["Fin"], dayfirst=True, errors="coerce").max()
 
 resumen = {
-    "anio": int(inicio.year),
     "encuestas": int(len(df)),
-    "periodo": {
-        "inicio": inicio.strftime("%Y-%m-%d"),
-        "fin": fin.strftime("%Y-%m-%d"),
-        "dias": int((fin - inicio).days + 1)
-    },
-    "conteos": {
-        "carreras": int(df["Carrera"].nunique())
-    }
+    "carreras": int(df["Carrera"].nunique()),
+    "facultades": int(df["Facultad"].nunique()),
+    "fecha_inicio": inicio.strftime("%Y-%m-%d"),
+    "fecha_fin": fin.strftime("%Y-%m-%d"),
+    "dias_recoleccion": int((fin - inicio).days + 1)
 }
 
 with open(f"{OUT}resumen.json", "w", encoding="utf-8") as f:
     json.dump(resumen, f, ensure_ascii=False, indent=2)
 
-# -----------------------
-# BLOQUES DE DIMENSIONES
-# -----------------------
-bloques = {
-    "academico.json": [
-        "Perfil del egreso de la carrera",
-        "Calidad de la enseñanza en la carrera",
-        "Plan curricular y perfil de egreso",
-        "Cursos del programa y contenidos",
-        "Evaluación del aprendizaje",
-        "Intercambio estudiantil"
-    ],
-    "infraestructura.json": [
-        "Condiciones ambientales en laboratorios",
-        "Equipamiento tecnológico en laboratorios",
-        "Aulas de clase",
-        "Ambientes y aulas para estudio"
-    ],
-    "tecnologia.json": [
-        "Aula virtual",
-        "Software especializado empleado en la carrera",
-        "Portal web de la Universidad",
-        "Conexión WiFi en el campus",
-        "Soporte técnico del sistema informático"
-    ],
-    "administrativo_bienestar.json": [
-        "Talleres de actividades artísticas y culturales",
-        "Actividades deportivas",
-        "Información sobre tu récord académico",
-        "Servicio de atención psicopedagógica",
-        "Atención del personal administrativo",
-        "Material bibliográfico en la biblioteca",
-        "Ayuda financiera",
-        "Servicio médico y su infraestructura"
-    ]
-}
+# =========================================================
+# 4. csat.json (solo distribución de respuestas)
+# =========================================================
+csat_col = "La Universidad de Lima"
+serie = df[csat_col].dropna()
 
-for filename, dims in bloques.items():
-    salida = []
-    for dim in dims:
-        pct, ok, total = t3b_from_counts(df[dim])
-        salida.append({
-            "dimension": dim,
-            "t3b": pct,
-            "conteo_top3": int(ok),
-            "total_validas": int(total)
-        })
-    with open(f"{OUT}{filename}", "w", encoding="utf-8") as f:
-        json.dump({"dimensiones": salida}, f, ensure_ascii=False, indent=2)
-
-# -----------------------
-# NPS
-# -----------------------
-def calc_nps(series):
-    s = series.dropna()
-    total = len(s)
-    prom = (s >= 9).sum()
-    detr = (s <= 6).sum()
-    return round(((prom - detr) / total) * 100, 2), prom, detr, total
-
-nps, prom, detr, total = calc_nps(df["Recomiendas la Universidad de Lima"])
-pasivos = total - prom - detr
-
-nps_json = {
-    "score": nps,
-    "meta": 50,
-    "diferencia": round(nps - 50, 2),
-    "composicion": {
-        "promotores": {"conteo": int(prom), "porcentaje": round(prom / total * 100, 2)},
-        "pasivos": {"conteo": int(pasivos), "porcentaje": round(pasivos / total * 100, 2)},
-        "detractores": {"conteo": int(detr), "porcentaje": round(detr / total * 100, 2)}
-    }
-}
-
-with open(f"{OUT}nps.json", "w", encoding="utf-8") as f:
-    json.dump(nps_json, f, ensure_ascii=False, indent=2)
-
-# -----------------------
-# CSAT
-# -----------------------
-csat_pct, csat_ok, csat_total = t3b_from_counts(df["La Universidad de Lima"])
-dist = df["La Universidad de Lima"].value_counts()
-
-csat_json = {
-    "score": csat_pct,
-    "meta": 90,
-    "diferencia": round(csat_pct - 90, 2),
-    "distribucion": [
-        {
-            "categoria": str(k),
-            "conteo": int(v),
-            "porcentaje": round(v / csat_total * 100, 2)
-        }
-        for k, v in dist.items()
-    ]
-}
+csat_conteos = {r: int((serie == r).sum()) for r in respuestas_texto}
 
 with open(f"{OUT}csat.json", "w", encoding="utf-8") as f:
-    json.dump(csat_json, f, ensure_ascii=False, indent=2)
+    json.dump(csat_conteos, f, ensure_ascii=False, indent=2)
 
-# -----------------------
-# Evolución temporal
-# -----------------------
+# =========================================================
+# 5. evolucion_temporal.json (conteos diarios)
+# =========================================================
 df["fecha"] = pd.to_datetime(df["Inicio"], dayfirst=True, errors="coerce").dt.date
-serie = df.groupby("fecha").size().reset_index(name="respuestas")
 
-pico = serie.loc[serie["respuestas"].idxmax()]
+serie = (
+    df.groupby("fecha")
+    .size()
+    .reset_index(name="respuestas")
+)
 
-evol = {
-    "serie": [
-        {"fecha": str(r.fecha), "respuestas": int(r.respuestas)}
-        for r in serie.itertuples()
-    ],
-    "pico": {
-        "fecha": str(pico.fecha),
-        "valor": int(pico.respuestas)
-    }
-}
+evol = [
+    {"fecha": str(r.fecha), "respuestas": int(r.respuestas)}
+    for r in serie.itertuples()
+]
 
 with open(f"{OUT}evolucion_temporal.json", "w", encoding="utf-8") as f:
     json.dump(evol, f, ensure_ascii=False, indent=2)
 
-print("JSON generados correctamente.")
+print("Archivos generados correctamente (solo conteos enteros).")
