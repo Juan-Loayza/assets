@@ -132,7 +132,7 @@ with open(f"{OUT}nps_base.json", "w", encoding="utf-8") as f:
 # =========================================================
 inicio = pd.to_datetime(df["Inicio"], dayfirst=True, errors="coerce").min()
 fin = pd.to_datetime(df["Fin"], dayfirst=True, errors="coerce").max()
-anio_encuesta = pd.to_datetime(df["Inicio"]).dt.year.mode()[0]
+anio_encuesta = pd.to_datetime(df["Inicio"], dayfirst=True, errors="coerce").dt.year.mode()[0]
 
 resumen = {
     "encuestas": int(len(df)),
@@ -173,4 +173,5 @@ with open(f"{OUT}evolucion_temporal.json", "w", encoding="utf-8") as f:
     json.dump(evol, f, ensure_ascii=False, indent=2)
 
 print("Archivos generados correctamente (solo conteos enteros).")
+
 
