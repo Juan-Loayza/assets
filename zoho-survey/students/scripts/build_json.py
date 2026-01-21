@@ -103,29 +103,59 @@ with open(f"{OUT}dimensiones.json", "w", encoding="utf-8") as f:
     json.dump(rows, f, ensure_ascii=False, indent=2)
 
 # =========================================================
-# 2. nps_base.json
+# 2. NPS (global, carrera, ciclo)
 # =========================================================
 nps_col = "Recomiendas la Universidad de Lima"
 
-def build_nps(group_col, label):
-    salida = []
-    for val, sub in df.groupby(group_col):
-        serie = sub[nps_col].dropna()
-        conteos = {str(i): int((serie == i).sum()) for i in range(11)}
+df_nps = df[[nps_col, "Carrera", "Ciclo"]].dropna()
 
-        salida.append({
-            "nivel": label,
-            "valor": val,
-            **conteos
-        })
-    return salida
+# --------
+# NPS TOTAL
+# --------
+promotores = int(df_nps[df_nps[nps_col] >= 9].shape[0])
+pasivos = int(df_nps[(df_nps[nps_col] >= 7) & (df_nps[nps_col] <= 8)].shape[0])
+detractores = int(df_nps[df_nps[nps_col] <= 6].shape[0])
 
-nps_rows = []
-nps_rows += build_nps("Carrera", "carrera")
-nps_rows += build_nps("Ciclo", "ciclo")
+nps_total = {
+    "Promotores": promotores,
+    "Pasivos": pasivos,
+    "Detractores": detractores
+}
 
-with open(f"{OUT}nps_base.json", "w", encoding="utf-8") as f:
-    json.dump(nps_rows, f, ensure_ascii=False, indent=2)
+with open(f"{OUT}nps.json", "w", encoding="utf-8") as f:
+    json.dump(nps_total, f, ensure_ascii=False, indent=2)
+
+# ----------------
+# NPS POR CARRERA
+# ----------------
+nps_carrera = []
+
+for carrera, sub in df_nps.groupby("Carrera"):
+    nps_carrera.append({
+        "carrera": carrera,
+        "Promotores": int((sub[nps_col] >= 9).sum()),
+        "Pasivos": int(((sub[nps_col] >= 7) & (sub[nps_col] <= 8)).sum()),
+        "Detractores": int((sub[nps_col] <= 6).sum())
+    })
+
+with open(f"{OUT}nps_carrera.json", "w", encoding="utf-8") as f:
+    json.dump(nps_carrera, f, ensure_ascii=False, indent=2)
+
+# --------------
+# NPS POR CICLO
+# --------------
+nps_ciclo = []
+
+for ciclo, sub in df_nps.groupby("Ciclo"):
+    nps_ciclo.append({
+        "ciclo": ciclo,
+        "Promotores": int((sub[nps_col] >= 9).sum()),
+        "Pasivos": int(((sub[nps_col] >= 7) & (sub[nps_col] <= 8)).sum()),
+        "Detractores": int((sub[nps_col] <= 6).sum())
+    })
+
+with open(f"{OUT}nps_ciclo.json", "w", encoding="utf-8") as f:
+    json.dump(nps_ciclo, f, ensure_ascii=False, indent=2)
 
 # =========================================================
 # 3. resumen.json
