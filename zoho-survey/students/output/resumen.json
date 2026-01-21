@@ -4,5 +4,6 @@
   "facultades": 7,
   "fecha_inicio": "2025-10-20",
   "fecha_fin": "2025-11-28",
-  "dias_recoleccion": 40
+  "dias_recoleccion": 40,
+  "anio": 2025
 }
