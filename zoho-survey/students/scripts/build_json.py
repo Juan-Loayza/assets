@@ -193,6 +193,47 @@ with open(f"{OUT}csat.json", "w", encoding="utf-8") as f:
     json.dump(csat_conteos, f, ensure_ascii=False, indent=2)
 
 # =========================================================
+# 4.1 csat_carrera.json (solo conteos)
+# =========================================================
+csat_carrera = []
+
+for (car, fac), sub in df.groupby(["Carrera", "Facultad"]):
+    serie = sub[csat_col].dropna()
+
+    row = {
+        "carrera": car,
+        "facultad": fac
+    }
+
+    for r in respuestas_texto:
+        row[r] = int((serie == r).sum())
+
+    csat_carrera.append(row)
+
+with open(f"{OUT}csat_carrera.json", "w", encoding="utf-8") as f:
+    json.dump(csat_carrera, f, ensure_ascii=False, indent=2)
+
+# =========================================================
+# 4.2 csat_ciclo.json (solo conteos)
+# =========================================================
+csat_ciclo = []
+
+for cic, sub in df.groupby("Ciclo"):
+    serie = sub[csat_col].dropna()
+
+    row = {
+        "ciclo": cic
+    }
+
+    for r in respuestas_texto:
+        row[r] = int((serie == r).sum())
+
+    csat_ciclo.append(row)
+
+with open(f"{OUT}csat_ciclo.json", "w", encoding="utf-8") as f:
+    json.dump(csat_ciclo, f, ensure_ascii=False, indent=2)
+
+# =========================================================
 # 5. evolucion_temporal.json
 # =========================================================
 df["fecha"] = pd.to_datetime(df["Inicio"], dayfirst=True, errors="coerce").dt.date
