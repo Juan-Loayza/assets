@@ -157,6 +157,25 @@ for ciclo, sub in df_nps.groupby("Ciclo"):
 with open(f"{OUT}nps_ciclo.json", "w", encoding="utf-8") as f:
     json.dump(nps_ciclo, f, ensure_ascii=False, indent=2)
 
+# --------------------------
+# NPS POR CICLO + CARRERA + FACULTAD
+# --------------------------
+df_nps_full = df[[nps_col, "Carrera", "Ciclo", "Facultad"]].dropna()
+nps_ciclo_carrera = []
+
+for (fac, car, cic), sub in df_nps_full.groupby(["Facultad", "Carrera", "Ciclo"]):
+    nps_ciclo_carrera.append({
+        "facultad": fac,
+        "carrera": car,
+        "ciclo": cic,
+        "Promotores": int((sub[nps_col] >= 9).sum()),
+        "Pasivos": int(((sub[nps_col] >= 7) & (sub[nps_col] <= 8)).sum()),
+        "Detractores": int((sub[nps_col] <= 6).sum())
+    })
+
+with open(f"{OUT}nps_ciclo_carrera.json", "w", encoding="utf-8") as f:
+    json.dump(nps_ciclo_carrera, f, ensure_ascii=False, indent=2)
+
 # =========================================================
 # 3. resumen.json
 # =========================================================
@@ -232,6 +251,28 @@ for cic, sub in df.groupby("Ciclo"):
 
 with open(f"{OUT}csat_ciclo.json", "w", encoding="utf-8") as f:
     json.dump(csat_ciclo, f, ensure_ascii=False, indent=2)
+
+# =========================================================
+# 4.3 csat_ciclo_carrera.json (con facultad, carrera, ciclo)
+# =========================================================
+csat_ciclo_carrera = []
+
+for (fac, car, cic), sub in df.groupby(["Facultad", "Carrera", "Ciclo"]):
+    serie = sub[csat_col].dropna()
+
+    row = {
+        "facultad": fac,
+        "carrera": car,
+        "ciclo": cic
+    }
+
+    for r in respuestas_texto:
+        row[r] = int((serie == r).sum())
+
+    csat_ciclo_carrera.append(row)
+
+with open(f"{OUT}csat_ciclo_carrera.json", "w", encoding="utf-8") as f:
+    json.dump(csat_ciclo_carrera, f, ensure_ascii=False, indent=2)
 
 # =========================================================
 # 5. evolucion_temporal.json
